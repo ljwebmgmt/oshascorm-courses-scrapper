@@ -5,7 +5,7 @@
       "memory": 1024,
       "maxDuration": 15
     },
-    "api/catalog-worker.js": {
+    "api/scrape-worker.js": {
       "memory": 2048,
       "maxDuration": 60
     },
