@@ -28,7 +28,7 @@ export default async function handler(req, res) {
   const browser = await playwright.chromium.launch({
     args: [...chromium.args, '--single-process', '--disable-gpu', '--no-sandbox'],
     executablePath: await chromium.executablePath(),
-    headless: chromium.headless
+    headless: true
   });
 
   const page = await browser.newPage();
