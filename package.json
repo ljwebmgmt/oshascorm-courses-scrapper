@@ -1,0 +1,13 @@
+{
+  "name": "shopify-alt-automation",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+  	"@sparticuz/chromium": "^122.0.0",
+  	"@upstash/qstash": "^2.7.3",
+  	"@vercel/blob": "^0.27.1",
+  	"exceljs": "^4.4.0",
+  	"fuse.js": "^7.0.0",
+    "playwright-core": "^1.42.1"
+  }
+}

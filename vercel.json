@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "functions": {
+    "api/scrape-worker.js": {
+      "memory": 3008,
+      "maxDuration": 300
+    },
+    "api/trigger-scrape.js": {
+      "memory": 1024,
+      "maxDuration": 30
+    }
+  }
+}
