@@ -25,9 +25,15 @@ export default async function handler(req, res) {
 
   console.log(`[Catalog Worker - ${brand}] Discovering links on ${url}`);
 
+  const executablePath = await chromium.executablePath();
+  const execDir = path.dirname(executablePath);
+
+  // CRITICAL FIX: Tell Linux linker to search the Chromium temp folder for libnss3.so
+  process.env.LD_LIBRARY_PATH = `${execDir}:${process.env.LD_LIBRARY_PATH || ''}`;
+
   const browser = await playwright.chromium.launch({
-    args: [...chromium.args, '--single-process', '--disable-gpu', '--no-sandbox'],
-    executablePath: await chromium.executablePath(),
+    args: [...chromium.args, '--single-process', '--disable-gpu', '--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage'],
+    executablePath: executablePath,
     headless: true
   });
 
