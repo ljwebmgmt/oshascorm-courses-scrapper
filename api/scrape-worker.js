@@ -1,6 +1,7 @@
 import { Client, Receiver } from '@upstash/qstash';
 import chromium from '@sparticuz/chromium';
 import playwright from 'playwright-core';
+import path from 'path';
 
 export const config = {
   maxDuration: 60,

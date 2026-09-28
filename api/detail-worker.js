@@ -3,6 +3,7 @@ import chromium from '@sparticuz/chromium';
 import playwright from 'playwright-core';
 import ExcelJS from 'exceljs';
 import Fuse from 'fuse.js';
+import path from 'path';
 
 export const config = {
   maxDuration: 60,
