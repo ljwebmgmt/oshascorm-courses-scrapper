@@ -11,6 +11,7 @@ export const config = {
 const receiver = new Receiver({
   currentSigningKey: process.env.QSTASH_CURRENT_SIGNING_KEY,
   nextSigningKey: process.env.QSTASH_NEXT_SIGNING_KEY,
+  baseUrl: 'https://qstash-us-east-1.upstash.io'
 });
 
 export default async function handler(req, res) {
@@ -20,7 +21,7 @@ export default async function handler(req, res) {
   const { brand, url } = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
   if (!brand || !url) return res.status(400).json({ error: 'Missing brand or url' });
 
-  const qstash = new Client({ token: process.env.QSTASH_TOKEN });
+  const qstash = new Client({ token: process.env.QSTASH_TOKEN, baseUrl: 'https://qstash-us-east-1.upstash.io' });
   const protocol = req.headers['x-forwarded-proto'] || 'https';
   const detailWorkerUrl = `${protocol}://${req.headers['host']}/api/detail-worker`;
 

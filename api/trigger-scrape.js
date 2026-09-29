@@ -6,7 +6,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const qstash = new Client({ token: process.env.QSTASH_TOKEN });
+    const qstash = new Client({ token: process.env.QSTASH_TOKEN, baseUrl: 'https://qstash-us-east-1.upstash.io' });
     const competitorUrls = JSON.parse(process.env.COMPETITOR_URLS || '{}');
 
     const protocol = req.headers['x-forwarded-proto'] || 'https';
