@@ -9,15 +9,21 @@ export const config = {
 };
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
-  const { brand, detailUrl } = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-  if (!detailUrl) return res.status(400).json({ error: 'Missing detailUrl' });
+  const payload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+  const brand = payload?.brand || 'Unknown';
+  const detailUrl = payload?.detailUrl;
+
+  if (!detailUrl) {
+    return res.status(400).json({ error: 'Missing detailUrl' });
+  }
 
   console.log(`[Detail Worker - ${brand}] Fetching via Fast HTTP: ${detailUrl}`);
 
   try {
-    // 1. HTTP GET with Realistic Browser Headers (Bypasses Cloudflare / WAF Handshake Checks)
     const response = await fetch(detailUrl, {
       method: 'GET',
       headers: {
@@ -44,7 +50,6 @@ export default async function handler(req, res) {
     const html = await response.text();
     const $ = cheerio.load(html);
 
-    // 2. Multi-Selector Title & OpenGraph Extraction
     const title = 
       $('h1').first().text().trim() \vert{}\vert{}$('meta[property="og:title"]').attr('content') || 
       $('title').text().split('|')[0].trim();
@@ -54,38 +59,34 @@ export default async function handler(req, res) {
       return res.status(200).json({ skipped: true, reason: 'No title parsed' });
     }
 
-    // Price extraction across platforms
     const rawPrice = 
       $('.price, .course-price, [data-price], .product-price, .amount, .cost').first().text().trim() || 
       '29.99';
 
-    // Duration extraction
     const duration = 
       $('.duration, .hours, .course-length, [data-duration], .time-estimate').first().text().trim() || 
       '2 Hours';
 
-    // CFR Citation extraction from raw HTML body
     const pageText = $('body').text();
     const cfrMatch = pageText.match(/\b(29\s*CFR\s*[\d\.]+[\/\d]*|49\s*CFR\s*[\d\.]+)\b/i);
     const citation = cfrMatch ? cfrMatch[0] : '';
 
-    // Extract Hero / OG Image URL
     let imageUrl = 
       $('meta[property="og:image"]').attr('content') || 
       $('.course-hero img, .product-single__photo img, .main-image img, hero-section img').first().attr('src') || 
       '';
 
-    // Ensure relative URLs are formatted to absolute URLs
     if (imageUrl && imageUrl.startsWith('/')) {
       const urlObj = new URL(detailUrl);
       imageUrl = `${urlObj.origin}${imageUrl}`;
     }
 
-    // Highlighting / Feature Bullets
     const bullets = [];
     $('.course-highlights li, .features li, .description li, ul.benefits li').slice(0, 5).each((_, el) => {
       const text = $(el).text().trim();
-      if (text && text.length < 200) bullets.push(`• ${text}`);
+      if (text && text.length < 200) {
+        bullets.push(`• ${text}`);
+      }
     });
 
     const highlights = bullets.length > 0 
@@ -94,11 +95,12 @@ export default async function handler(req, res) {
 
     const courseData = { title, rawPrice, duration, citation, imageUrl, highlights };
 
-    // 3. Blob Workbook & Deduplication Strategy
     const blobPath = process.env.EXCEL_BLOB_PATH || 'ICTrainingUS_reviewed_with_course_highlights.xlsx';
     const blobList = await list({ prefix: blobPath });
 
-    if (!blobList.blobs.length) return res.status(404).json({ error: 'Master Excel Blob not found' });
+    if (!blobList.blobs.length) {
+      return res.status(404).json({ error: 'Master Excel Blob not found' });
+    }
 
     const blobResponse = await fetch(blobList.blobs[0].url);
     const arrayBuffer = await blobResponse.arrayBuffer();
@@ -122,11 +124,13 @@ export default async function handler(req, res) {
       return res.status(200).json({ skipped: true, reason: 'Duplicate course' });
     }
 
-    // 4. Append to Excel Row
     const priceNum = parseFloat(courseData.rawPrice.replace(/[^0-9.]/g, '')) || 29.99;
     let regBody = 'OSHA';
-    if (courseData.title.includes('DOT') || courseData.citation.includes('49 CFR')) regBody = 'DOT';
-    else if (courseData.title.includes('EPA')) regBody = 'EPA';
+    if (courseData.title.includes('DOT') || courseData.citation.includes('49 CFR')) {
+      regBody = 'DOT';
+    } else if (courseData.title.includes('EPA')) {
+      regBody = 'EPA';
+    }
 
     masterSheet.addRow([
       'General Safety',
@@ -143,7 +147,6 @@ export default async function handler(req, res) {
       'General Safety Bundle'
     ]);
 
-    // 5. Update Excel File in Vercel Blob
     const updatedBuffer = await workbook.xlsx.writeBuffer();
     await put(blobPath, updatedBuffer, { access: 'public', addRandomSuffix: false });
 
