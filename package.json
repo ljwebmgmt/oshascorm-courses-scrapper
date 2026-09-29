@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "dependencies": {
+    "cheerio": "^1.0.0-rc.12",
   	"@sparticuz/chromium": "^131.0.0",
   	"@upstash/qstash": "^2.7.3",
   	"@vercel/blob": "^0.27.1",
