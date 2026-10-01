@@ -155,6 +155,7 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error('[Detail Worker Exception]:', err.message);
+    console.log(err);
     return res.status(500).json({ error: err.message });
   }
 }
