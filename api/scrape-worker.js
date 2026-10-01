@@ -75,6 +75,10 @@ export default async function handler(req, res) {
     qstash.publishJSON({
       url: detailWorkerUrl,
       body: { brand, detailUrl: courseUrl },
+      flowControl: {
+        key: 'excel-writer-lock', // Custom key grouping these jobs
+        parallelism: 1            // Only allow 1 job to run at a time
+      },
       retries: 2
     })
   );
