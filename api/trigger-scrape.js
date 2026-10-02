@@ -6,23 +6,31 @@ export default async function handler(req, res) {
   }
 
   try {
-    const qstash = new Client({ token: process.env.QSTASH_TOKEN, baseUrl: 'https://qstash-us-east-1.upstash.io' });
+    const qstash = new Client({ 
+      token: process.env.QSTASH_TOKEN, 
+      baseUrl: 'https://qstash-us-east-1.upstash.io' 
+    });
+    
     const competitorUrls = JSON.parse(process.env.COMPETITOR_URLS || '{}');
 
     const protocol = req.headers['x-forwarded-proto'] || 'https';
     const host = req.headers['host'];
-    const workerUrl = `${protocol}://${host}/api/scrape-worker`;
+    const catalogWorkerUrl = `${protocol}://${host}/api/scrape-worker`;
+
+    // 1. Generate ONE global jobId for this entire multi-brand scraping session
+    const globalJobId = `run_all_brands_${Date.now()}`;
 
     const dispatchPromises = [];
 
     for (const [brand, targetUrl] of Object.entries(competitorUrls)) {
-      console.log(`[QStash Dispatcher] Publishing scraping job for ${brand}`);
+      console.log(`[QStash Dispatcher] Publishing catalog job for ${brand} with globalJobId: ${globalJobId}`);
       
       const promise = qstash.publishJSON({
-        url: workerUrl,
+        url: catalogWorkerUrl,
         body: {
           brand: brand,
-          url: targetUrl
+          catalogUrl: targetUrl,
+          jobId: globalJobId // Pass the same jobId across all brands
         },
         retries: 2,
       });
@@ -34,7 +42,8 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       success: true,
-      message: `Successfully dispatched ${results.length} scraping jobs to QStash.`,
+      jobId: globalJobId,
+      message: `Successfully dispatched ${results.length} catalog scraping jobs to QStash.`,
       dispatchedBrands: Object.keys(competitorUrls)
     });
 

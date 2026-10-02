@@ -1,90 +1,86 @@
-import { Client, Receiver } from '@upstash/qstash';
-import chromium from '@sparticuz/chromium';
-import playwright from 'playwright-core';
-import path from 'path';
+import { Redis } from '@upstash/redis';
+import { Client } from '@upstash/qstash';
+import * as cheerio from 'cheerio';
+
+const redis = Redis.fromEnv();
+const qstash = new Client({
+  token: process.env.QSTASH_TOKEN,
+  baseUrl: 'https://qstash-us-east-1.upstash.io'
+});
 
 export const config = {
   maxDuration: 60,
-  memory: 2048
+  memory: 1024
 };
-
-const receiver = new Receiver({
-  currentSigningKey: process.env.QSTASH_CURRENT_SIGNING_KEY,
-  nextSigningKey: process.env.QSTASH_NEXT_SIGNING_KEY,
-  baseUrl: 'https://qstash-us-east-1.upstash.io'
-});
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  // Signature verification omitted for brevity (keep standard QStash receiver check)
-  const { brand, url } = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-  if (!brand || !url) return res.status(400).json({ error: 'Missing brand or url' });
+  let payload = req.body;
+  if (typeof payload === 'string') payload = JSON.parse(payload);
 
-  const qstash = new Client({ token: process.env.QSTASH_TOKEN, baseUrl: 'https://qstash-us-east-1.upstash.io' });
-  const protocol = req.headers['x-forwarded-proto'] || 'https';
-  const detailWorkerUrl = `${protocol}://${req.headers['host']}/api/detail-worker`;
-
-  console.log(`[Catalog Worker - ${brand}] Discovering links on ${url}`);
-
-  const executablePath = await chromium.executablePath();
-  const execDir = path.dirname(executablePath);
-
-  // CRITICAL FIX: Tell Linux linker to search the Chromium temp folder for libnss3.so
-  process.env.LD_LIBRARY_PATH = `${execDir}:${process.env.LD_LIBRARY_PATH || ''}`;
-
-  const browser = await playwright.chromium.launch({
-    args: [...chromium.args, '--single-process', '--disable-gpu', '--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage'],
-    executablePath: executablePath,
-    headless: true
-  });
-
-  const page = await browser.newPage();
-  const courseUrls = new Set();
-  let currentCatalogUrl = url;
-  let pageCount = 0;
-
-  while (currentCatalogUrl && pageCount < 3) {
-    await page.goto(currentCatalogUrl, { waitUntil: 'domcontentloaded', timeout: 25000 });
-
-    const discoveredLinks = await page.evaluate(() => {
-      const links = Array.from(document.querySelectorAll('a[href]'));
-      const courseHrefPattern = /\/(courses?|products?|p|training|item|pd)\/[a-zA-Z0-9_-]+/i;
-      const blacklist = ['category', 'collections', 'cart', 'login', 'checkout', 'contact', 'about', 'privacy'];
-
-      return links
-        .map(a => a.href)
-        .filter(href => courseHrefPattern.test(href) && !blacklist.some(kw => href.toLowerCase().includes(kw)));
-    });
-
-    discoveredLinks.forEach(link => courseUrls.add(link));
-
-    const nextPageUrl = await page.evaluate(() => {
-      const nextBtn = document.querySelector('a.next, .pagination-next a, [aria-label="Next"], link[rel="next"]');
-      return nextBtn ? nextBtn.href : null;
-    });
-
-    currentCatalogUrl = nextPageUrl;
-    pageCount++;
+  const { brand, catalogUrl, jobId } = payload || {};
+  if (!catalogUrl || !brand || !jobId) {
+    return res.status(400).json({ error: 'Missing brand, catalogUrl, or jobId' });
   }
 
-  await browser.close();
+  console.log(`[Catalog Worker - ${brand}] Scraping URLs from: ${catalogUrl}`);
 
-  // Fan-out: Publish 1 QStash message per course URL to detail-worker
-  const dispatchPromises = Array.from(courseUrls).map(courseUrl => 
-    qstash.publishJSON({
-      url: detailWorkerUrl,
-      body: { brand, detailUrl: courseUrl },
-      flowControl: {
-        key: 'excel-writer-lock', // Custom key grouping these jobs
-        parallelism: 1            // Only allow 1 job to run at a time
-      },
-      retries: 2
-    })
-  );
+  try {
+    const response = await fetch(catalogUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+      }
+    });
 
-  await Promise.all(dispatchPromises);
+    if (!response.ok) {
+      return res.status(500).json({ error: `Catalog fetch failed with HTTP ${response.status}` });
+    }
 
-  console.log(`[Catalog Worker - ${brand}] Dispatched ${courseUrls.size} course detail jobs to QStash.`);
-  return res.status(200).json({ brand, totalDispatched: courseUrls.size });
+    const html = await response.text();
+    const $ = cheerio.load(html);
+
+    const discoveredUrls = new Set();
+    $('a[href*="/course/"], a[href*="/courses/"]').each(function() {
+      let href = $(this).attr('href');
+      if (href) {
+        if (href.startsWith('/')) {
+          const origin = new URL(catalogUrl).origin;
+          href = origin + href;
+        }
+        if (href.startsWith('http')) {
+          discoveredUrls.add(href.split('#')[0]);
+        }
+      }
+    });
+
+    const courseUrls = Array.from(discoveredUrls);
+    if (courseUrls.length === 0) {
+      return res.status(200).json({ message: `No course URLs discovered for ${brand}.` });
+    }
+
+    const protocol = req.headers['x-forwarded-proto'] || 'https';
+    const detailWorkerUrl = `${protocol}://${req.headers['host']}/api/detail-worker`;
+
+    // Atomically ADD this brand's discovered course count to the global counter
+    await redis.incrby(`total_count:${jobId}`, courseUrls.length);
+
+    // Dispatch detail tasks for this brand
+    const dispatchPromises = courseUrls.map(courseUrl => 
+      qstash.publishJSON({
+        url: detailWorkerUrl,
+        body: { brand, detailUrl: courseUrl, jobId },
+        retries: 2
+      })
+    );
+
+    await Promise.all(dispatchPromises);
+
+    console.log(`[Catalog Worker - ${brand}] Added ${courseUrls.length} courses to global job: ${jobId}`);
+    return res.status(200).json({ success: true, brand, jobId, dispatched: courseUrls.length });
+
+  } catch (err) {
+    console.error(`[Catalog Worker Exception - ${brand}]: ${err.message}`);
+    return res.status(500).json({ error: err.message });
+  }
 }
