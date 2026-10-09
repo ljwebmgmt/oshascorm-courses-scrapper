@@ -227,17 +227,14 @@ export default async function handler(request, response) {
           summary.to_update++;
           processedMetaobjectIds.add(existingMO.id);
           jsonlLinesUpsert.push(JSON.stringify({
-            id: existingMO.id,
+            handle: { type: "osha_course", handle: existingMO.handle || generateHandle(primaryName) },
             metaobject: { fields }
           }));
         } else {
           summary.to_create++;
           jsonlLinesUpsert.push(JSON.stringify({
-            metaobject: {
-              type: "osha_course",
-              handle: generateHandle(primaryName),
-              fields
-            }
+            handle: { type: "osha_course", handle: generateHandle(primaryName) },
+            metaobject: { fields }
           }));
         }
       }
@@ -290,10 +287,16 @@ export default async function handler(request, response) {
       const upsertPayload = jsonlLinesUpsert.join('\n');
       const stagedPathUpsert = await uploadJsonl(storeCfg, upsertPayload, "BULK_MUTATION_VARIABLES");
       const UPSERT_MUTATION = `
-        mutation metaobjectUpsert($id: ID, $metaobject: MetaobjectUpsertInput!) {
-          metaobjectUpsert(id: $id, metaobject: $metaobject) {
-            metaobject { id handle }
-            userErrors { field message }
+        mutation metaobjectUpsert($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {
+          metaobjectUpsert(handle: $handle, metaobject: $metaobject) {
+            metaobject {
+              id
+              handle
+            }
+            userErrors {
+              field
+              message
+            }
           }
         }
       `;
