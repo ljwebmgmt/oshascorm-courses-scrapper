@@ -228,13 +228,27 @@ export default async function handler(request, response) {
           processedMetaobjectIds.add(existingMO.id);
           jsonlLinesUpsert.push(JSON.stringify({
             handle: { type: "osha_course", handle: existingMO.handle || generateHandle(primaryName) },
-            metaobject: { fields }
+            metaobject: {
+              capabilities: {
+                publishable: {
+                  status: "ACTIVE"
+                }
+              },
+              fields 
+            }
           }));
         } else {
           summary.to_create++;
           jsonlLinesUpsert.push(JSON.stringify({
             handle: { type: "osha_course", handle: generateHandle(primaryName) },
-            metaobject: { fields }
+            metaobject: {
+              capabilities: {
+                publishable: {
+                  status: "ACTIVE"
+                }
+              },
+              fields 
+            }
           }));
         }
       }
