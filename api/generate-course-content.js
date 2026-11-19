@@ -1,8 +1,8 @@
 import OpenAI from 'openai';
 
 const client = new OpenAI({
-  baseURL: 'https://api.puter.com/puterai/openai/v1',
-  apiKey: process.env.PUTER_AUTH_TOKEN,
+  baseURL: 'https://api.groq.com/openai/v1',
+  apiKey: process.env.GROQ_API_KEY,
 });
 
 export default async function handler(req, res) {
@@ -57,7 +57,7 @@ STRICT RULES
 - Output only the three sections, with no preamble, closing remarks, or notes.`;
 
     const completion = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'llama-3.3-70b-versatile',
       messages: [{ role: 'user', content: prompt }],
     });
 
