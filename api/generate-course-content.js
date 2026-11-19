@@ -22,7 +22,7 @@ export default async function handler(req, res) {
       course_family
     } = req.body;
 
-    let prompt = `You are a professional instructional writer for an occupational safety training provider. Write course content in professional American English, as plain text only (no HTML, no markdown symbols such as # or *). Use the source information below as your only factual basis.
+    let prompt = `You are a professional instructional writer for an occupational safety training provider. Write course content in professional American English, formatted as simple HTML. Use the source information below as your only factual basis.
 
 SOURCE INFORMATION`;
 
@@ -37,15 +37,17 @@ SOURCE INFORMATION`;
 
     prompt += `
 
-OUTPUT FORMAT (use these exact section labels)
-Course Description
-A comprehensive, detailed description of the course: what it covers, why the topic matters in the workplace, and how it relates to the governing regulation listed above. Be thorough, but prefer accuracy over length.
+OUTPUT FORMAT (use these exact HTML structure)
+<h2>Course Description</h2>
+<p>A comprehensive, detailed description of the course: what it covers, why the topic matters in the workplace, and how it relates to the governing regulation listed above. Be thorough, but prefer accuracy over length.</p>
 
-Learning Objectives
-5 to 7 objectives, each on its own line starting with "- " and an action verb, derived only from the course name, citation, and highlights.
+<h2>Learning Objectives</h2>
+<ul>
+  <li>5 to 7 objectives, each starting with an action verb, derived only from the course name, citation, and highlights.</li>
+</ul>
 
-Target Audience
-The roles and industries this course is suited for, based on the primary industries and course information provided.
+<h2>Target Audience</h2>
+<p>The roles and industries this course is suited for, based on the primary industries and course information provided.</p>
 
 STRICT RULES
 - Use only the source information above. Do not invent curriculum topics, modules, exercises, or hands-on components that are not supported by it.
@@ -54,7 +56,7 @@ STRICT RULES
 - Do not guarantee compliance, and do not state that the course satisfies any legal training requirement.
 - Do not state or imply that any duration is mandated; if a suggested duration is provided, describe it only as suggested.
 - If a source value is missing, omit it; do not guess or fill gaps.
-- Output only the three sections, with no preamble, closing remarks, or notes.`;
+- Output only the three sections with HTML tags, with no preamble, closing remarks, or notes.`;
 
     const completion = await client.chat.completions.create({
       model: 'openai/gpt-oss-120b',
