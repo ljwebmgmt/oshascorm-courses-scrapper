@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 
 const client = new OpenAI({
-  baseURL: 'https://puter.com',
+  baseURL: 'https://api.puter.com/puterai/openai/v1',
   apiKey: process.env.PUTER_AUTH_TOKEN,
 });
 
