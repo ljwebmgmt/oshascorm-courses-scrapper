@@ -1,4 +1,4 @@
-const puter = require('puter.js');
+import { puter } from "@heyputer/puter.js";
 
 export default async function handler(req, res) {
   // Only allow POST requests
