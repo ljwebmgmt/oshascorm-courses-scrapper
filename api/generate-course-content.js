@@ -1,4 +1,4 @@
-import { puter } from "@heyputer/puter.js";
+import { init } from "@heyputer/puter.js/src/init.cjs";
 
 export default async function handler(req, res) {
   // Only allow POST requests
@@ -7,6 +7,7 @@ export default async function handler(req, res) {
   }
 
   try {
+    const puter = init(process.env.PUTER_AUTH_TOKEN);
     const {
       course_name,
       governing_regulation_citation,
@@ -54,7 +55,7 @@ STRICT RULES
 - Output only the three sections, with no preamble, closing remarks, or notes.`;
 
     // Use puter.js for AI generation
-    const response = await puter.ai.chat(prompt);
+    const response = await puter.ai.chat(prompt, { model: 'gpt-4o-mini' });
 
     return res.status(200).json({
       success: true,
