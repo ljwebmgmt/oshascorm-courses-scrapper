@@ -1,13 +1,16 @@
-import { init } from "@heyputer/puter.js/src/init.cjs";
+import OpenAI from 'openai';
+
+const client = new OpenAI({
+  baseURL: 'https://puter.com',
+  apiKey: process.env.PUTER_AUTH_TOKEN,
+});
 
 export default async function handler(req, res) {
-  // Only allow POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const puter = init(process.env.PUTER_AUTH_TOKEN);
     const {
       course_name,
       governing_regulation_citation,
@@ -19,7 +22,6 @@ export default async function handler(req, res) {
       course_family
     } = req.body;
 
-    // Build the prompt
     let prompt = `You are a professional instructional writer for an occupational safety training provider. Write course content in professional American English, as plain text only (no HTML, no markdown symbols such as # or *). Use the source information below as your only factual basis.
 
 SOURCE INFORMATION`;
@@ -54,12 +56,16 @@ STRICT RULES
 - If a source value is missing, omit it; do not guess or fill gaps.
 - Output only the three sections, with no preamble, closing remarks, or notes.`;
 
-    // Use puter.js for AI generation
-    const response = await puter.ai.chat(prompt, { model: 'gpt-4o-mini' });
+    const completion = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const generatedText = completion.choices[0]?.message?.content || '';
 
     return res.status(200).json({
       success: true,
-      content: response
+      content: generatedText
     });
 
   } catch (error) {

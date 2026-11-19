@@ -10,6 +10,6 @@
   	"exceljs": "^4.4.0",
   	"fuse.js": "^7.0.0",
     "xlsx": "^0.18.5",
-    "@heyputer/puter.js": "^2.0.0"
+    "openai": "^7.55.0"
   }
 }
