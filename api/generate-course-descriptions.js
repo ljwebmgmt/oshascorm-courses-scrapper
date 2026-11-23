@@ -101,7 +101,9 @@ async function generateContent(request, node) {
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok || !data.success || !data.content) {
-    throw new Error(data.message || data.error || `Content generation failed with HTTP ${response.status}`);
+    const error = new Error(data.message || data.error || `Content generation failed with HTTP ${response.status}`);
+    error.status = response.status;
+    throw error;
   }
 
   return data.content;
@@ -204,6 +206,7 @@ export default async function handler(request, response) {
 
     let processed = 0;
     let failed = 0;
+    let rateLimited = false;
     const results = [];
 
     for (const node of candidates) {
@@ -223,6 +226,10 @@ export default async function handler(request, response) {
         failed++;
         results.push({ id: node.id, handle: node.handle, status: 'failed', error: error.message });
         console.error(`Error processing ${node.handle}:`, error.message);
+        if (error.status === 429) {
+          rateLimited = true;
+          break;
+        }
       }
 
       await new Promise(resolve => setTimeout(resolve, PROCESSING_DELAY_MS));
@@ -232,6 +239,7 @@ export default async function handler(request, response) {
       success: failed === 0,
       processed,
       failed,
+      rate_limited: rateLimited,
       results
     });
 

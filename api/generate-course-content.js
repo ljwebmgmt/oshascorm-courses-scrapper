@@ -5,6 +5,17 @@ const client = new OpenAI({
   apiKey: process.env.GROQ_API_KEY,
 });
 
+const PRIMARY_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
+const FALLBACK_MODELS = (process.env.GROQ_FALLBACK_MODELS || '')
+  .split(',')
+  .map(model => model.trim())
+  .filter(Boolean);
+const MODELS = [...new Set([PRIMARY_MODEL, ...FALLBACK_MODELS])];
+
+function isRateLimitError(error) {
+  return error?.status === 429 || error?.code === 'rate_limit_exceeded' || /rate limit|429/i.test(error?.message || '');
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -58,10 +69,22 @@ STRICT RULES
 - If a source value is missing, omit it; do not guess or fill gaps.
 - Output only the three sections with HTML tags, with no preamble, closing remarks, or notes.`;
 
-    const completion = await client.chat.completions.create({
-      model: 'openai/gpt-oss-120b',
-      messages: [{ role: 'user', content: prompt }],
-    });
+    let completion;
+    let lastError;
+    for (const model of MODELS) {
+      try {
+        completion = await client.chat.completions.create({
+          model,
+          messages: [{ role: 'user', content: prompt }],
+        });
+        break;
+      } catch (error) {
+        lastError = error;
+        if (!isRateLimitError(error)) throw error;
+        console.warn(`Groq rate limit reached for ${model}; trying fallback model.`);
+      }
+    }
+    if (!completion) throw lastError;
 
     const generatedText = completion.choices[0]?.message?.content || '';
 
@@ -72,8 +95,9 @@ STRICT RULES
 
   } catch (error) {
     console.error('Error generating course content:', error);
-    return res.status(500).json({ 
-      error: 'Failed to generate content',
+    const status = isRateLimitError(error) ? 429 : 500;
+    return res.status(status).json({ 
+      error: status === 429 ? 'Rate limit exceeded' : 'Failed to generate content',
       message: error.message 
     });
   }
